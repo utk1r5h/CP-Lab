@@ -10,6 +10,8 @@ private:
 
 public:
     Simulator(Graph& g);
+    
+    vector<vector<string>> infectionLog;
 
     void infectCity(string cityName);        // infect patient zero
     void quarantineCity(string cityName);    // block a city

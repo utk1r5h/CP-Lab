@@ -28,6 +28,7 @@ void Simulator::stepOneDay() {
 
     // collect newly infected this day
     // we dont directly modify while iterating
+    vector<string> newlyInfectedNames; // ADD THIS
     vector<City*> newlyInfected;
 
     for (City* city : graph.cities) {
@@ -40,15 +41,20 @@ void Simulator::stepOneDay() {
             }
         }
     }
+     // remove duplicates
+    sort(newlyInfected.begin(), newlyInfected.end());
+    newlyInfected.erase(unique(newlyInfected.begin(), newlyInfected.end()), newlyInfected.end());
 
     for (City* city : newlyInfected) {
         city->isInfected = true;
+        newlyInfectedNames.push_back(city->name);
         cout << "  " << city->name << " got infected!" << endl;
     }
 
     if (newlyInfected.empty()) {
         cout << "  No new infections today." << endl;
     }
+    infectionLog.push_back(newlyInfectedNames); 
 }
 
 void Simulator::printStatus() {

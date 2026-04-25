@@ -3,6 +3,7 @@
 #include "Simulator.h"
 #include "Tarjan.h"
 #include "Grundy.h"
+#include "OutbreakAnalyzer.h"
 using namespace std;
 
 void printMenu() {
@@ -18,6 +19,7 @@ void printMenu() {
     cout << "  7. Compare strategies (Grundy vs none)" << endl;
     cout << "  8. Run full auto demo" << endl;
     cout << "  9. View current status" << endl;
+    cout << "  10. Outbreak analysis (sliding window)" << endl;
     cout << "  0. Exit" << endl;
     cout << "========================================" << endl;
     cout << "Enter choice: ";
@@ -177,6 +179,13 @@ int main() {
         else if (choice == 9) {
             sim.printStatus();
         }
+        else if (choice == 10) {
+        int windowSize;
+        cout << "Enter window size (number of days): ";
+        cin >> windowSize;
+        OutbreakAnalyzer analyzer(sim.infectionLog, windowSize);
+        analyzer.analyze();
+        }   
 
         else {
             cout << "Invalid choice, try again." << endl;
