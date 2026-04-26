@@ -25,20 +25,16 @@ void printMenu() {
     cout << "Enter choice: ";
 }
 
-void buildNetwork(Graph& graph) {
-    // 8 cities — designed so Lucknow and Varanasi
-    // are clear articulation points
-    // Patna only reachable through Varanasi
-    // Agra only reachable through Lucknow
 
-    graph.addCity("Delhi",    15000);
-    graph.addCity("Mumbai",   20000);
-    graph.addCity("Pune",     10000);
-    graph.addCity("Kanpur",    6000);
-    graph.addCity("Lucknow",   8000);
-    graph.addCity("Agra",      4000);
-    graph.addCity("Varanasi",  3000);
-    graph.addCity("Patna",     2000);
+void buildNetwork(Graph& graph) {
+    graph.addCity("Delhi",    1500000);
+    graph.addCity("Mumbai",   2000000);
+    graph.addCity("Pune",     1000000);
+    graph.addCity("Kanpur",    600000);
+    graph.addCity("Lucknow",   800000);
+    graph.addCity("Agra",      400000);
+    graph.addCity("Varanasi",  300000);
+    graph.addCity("Patna",     200000);
 
     City* Delhi    = graph.findCity("Delhi");
     City* Mumbai   = graph.findCity("Mumbai");
@@ -49,35 +45,18 @@ void buildNetwork(Graph& graph) {
     City* Varanasi = graph.findCity("Varanasi");
     City* Patna    = graph.findCity("Patna");
 
-    // Delhi <-> Mumbai (two roads — not a bridge)
-    graph.addRoad(Delhi,   Mumbai,   "NH-48",      1400, "highway");
-    graph.addRoad(Delhi,   Mumbai,   "ExpressWay", 1450, "expressway");
-
-    // Delhi <-> Kanpur (single — bridge)
-    graph.addRoad(Delhi,   Kanpur,   "NH-19",       440, "highway");
-
-    // Mumbai <-> Pune (two roads — not a bridge)
-    graph.addRoad(Mumbai,  Pune,     "NH-4",        150, "highway");
-    graph.addRoad(Mumbai,  Pune,     "Expressway2", 160, "expressway");
-
-    // Pune <-> Kanpur (single — bridge)
-    graph.addRoad(Pune,    Kanpur,   "NH-27",       800, "highway");
-
-    // Kanpur <-> Lucknow (single — bridge)
-    // Lucknow is articulation point
-    graph.addRoad(Kanpur,  Lucknow,  "NH-25",        80, "highway");
-
-    // Lucknow <-> Agra (single — Agra isolated without Lucknow)
-    graph.addRoad(Lucknow, Agra,     "NH-19",       350, "highway");
-
-    // Lucknow <-> Varanasi (single — bridge)
-    // Varanasi is also articulation point
-    graph.addRoad(Lucknow, Varanasi, "NH-56",       320, "highway");
-
-    // Varanasi <-> Patna (single — Patna isolated without Varanasi)
-    graph.addRoad(Varanasi, Patna,   "NH-31",       250, "highway");
+    // capacity = people that can travel per day
+    graph.addRoad(Delhi,    Mumbai,   "NH-48",       1400, "highway",    50000);
+    graph.addRoad(Delhi,    Mumbai,   "ExpressWay",  1450, "expressway", 80000);
+    graph.addRoad(Delhi,    Kanpur,   "NH-19",        440, "highway",    30000);
+    graph.addRoad(Mumbai,   Pune,     "NH-4",         150, "highway",    40000);
+    graph.addRoad(Mumbai,   Pune,     "Expressway2",  160, "expressway", 60000);
+    graph.addRoad(Pune,     Kanpur,   "NH-27",        800, "highway",    20000);
+    graph.addRoad(Kanpur,   Lucknow,  "NH-25",         80, "highway",    25000);
+    graph.addRoad(Lucknow,  Agra,     "NH-19",        350, "highway",    15000);
+    graph.addRoad(Lucknow,  Varanasi, "NH-56",        320, "highway",    10000);
+    graph.addRoad(Varanasi, Patna,    "NH-31",        250, "highway",     8000);
 }
-
 void runFullDemo(Graph& graph, Simulator& sim) {
     cout << "\n========================================" << endl;
     cout << "         FULL AUTO DEMO                 " << endl;
@@ -153,12 +132,42 @@ int main() {
             sim.stepOneDay();
         }
 
-        else if (choice == 5) {
-            string cityName;
-            cout << "Enter city name to quarantine: ";
-            cin >> cityName;
+else if (choice == 5) {
+    string cityName;
+    cout << "Enter city name: ";
+    cin >> cityName;
+
+    City* city = graph.findCity(cityName);
+    if (!city) { cout << "[!] City not found" << endl; }
+    else {
+        cout << "Quarantine options:" << endl;
+        cout << "  1. Close ALL roads (full quarantine)" << endl;
+        cout << "  2. Close ONE specific road (partial)" << endl;
+        int qChoice;
+        cout << "Enter choice: ";
+        cin >> qChoice;
+
+        if (qChoice == 1) {
             sim.quarantineCity(cityName);
         }
+        else if (qChoice == 2) {
+            cout << "Roads from " << cityName << ":" << endl;
+            for (Road& r : city->roads) {
+                cout << "  -> " << r.destination->name
+                     << " | " << r.roadName
+                     << " | capacity: " << r.capacity
+                     << " | " << (r.isClosed ? "CLOSED" : "OPEN")
+                     << endl;
+            }
+            string destName, roadName;
+            cout << "Enter destination city: ";
+            cin >> destName;
+            cout << "Enter road name: ";
+            cin >> roadName;
+            graph.closeRoad(cityName, destName, roadName);
+        }
+    }
+}
 
         else if (choice == 6) {
             Grundy grundy(graph);

@@ -14,7 +14,12 @@ public:
 
     Graph();
     City* addCity(string name, int population);
-    void addRoad(City* a, City* b, string roadName, int distance, string type);
+
+    void addRoad(City* a, City* b, string roadName, int distance, string type, int capacity);
     City* findCity(string name);
     void printGraph();
+
+    void closeRoad(string cityA, string cityB, string roadName);
+
+    void closeAllRoads(string cityName);
 };

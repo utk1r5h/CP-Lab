@@ -6,13 +6,14 @@ using namespace std;
 
 Grundy::Grundy(Graph& g) : graph(g) {}
 
-// get neighbors of a city that can be newly infected
+// update getSpreadTargets to respect closed roads
 vector<string> Grundy::getSpreadTargets(const GameState& state) {
     set<string> targets;
     for (City* city : graph.cities) {
         if (state.infected.count(city->name) &&
             !state.quarantined.count(city->name)) {
             for (Road& road : city->roads) {
+                if (road.isClosed) continue; // NEW — respect closed roads
                 string neighbor = road.destination->name;
                 if (!state.infected.count(neighbor) &&
                     !state.quarantined.count(neighbor)) {

@@ -1,6 +1,7 @@
 #pragma once
 #include "Graph.h"
 #include <vector>
+#include <string>
 using namespace std;
 
 class Simulator {
@@ -10,7 +11,7 @@ private:
 
 public:
     Simulator(Graph& g);
-    
+
     vector<vector<string>> infectionLog;
 
     void infectCity(string cityName);        // infect patient zero
