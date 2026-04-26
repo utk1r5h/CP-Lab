@@ -4,6 +4,7 @@
 #include "Tarjan.h"
 #include "Grundy.h"
 #include "OutbreakAnalyzer.h"
+#include "Counterfactual.h"
 using namespace std;
 
 void printMenu() {
@@ -20,6 +21,9 @@ void printMenu() {
     cout << "  8. Run full auto demo" << endl;
     cout << "  9. View current status" << endl;
     cout << "  10. Outbreak analysis (sliding window)" << endl;
+    cout << "  11. Show available replay days" << endl;
+    cout << "  12. Counterfactual analysis" << endl;
+    cout << "  13. Compare multiple interventions" << endl;
     cout << "  0. Exit" << endl;
     cout << "========================================" << endl;
     cout << "Enter choice: ";
@@ -56,6 +60,7 @@ void buildNetwork(Graph& graph) {
     graph.addRoad(Lucknow,  Agra,     "NH-19",        350, "highway",    15000);
     graph.addRoad(Lucknow,  Varanasi, "NH-56",        320, "highway",    10000);
     graph.addRoad(Varanasi, Patna,    "NH-31",        250, "highway",     8000);
+
 }
 void runFullDemo(Graph& graph, Simulator& sim) {
     cout << "\n========================================" << endl;
@@ -195,6 +200,53 @@ else if (choice == 5) {
         OutbreakAnalyzer analyzer(sim.infectionLog, windowSize);
         analyzer.analyze();
         }   
+        else if (choice == 11) {
+    Counterfactual cf(graph, sim);
+    cf.showAvailableDays();
+}
+
+else if (choice == 12) {
+    Counterfactual cf(graph, sim);
+    cf.showAvailableDays();
+
+    int replayDay, forwardDays;
+    string cityName;
+
+    cout << "\nEnter day to replay from: ";
+    cin >> replayDay;
+    cout << "Enter city to quarantine in counterfactual: ";
+    cin >> cityName;
+    cout << "Enter how many days to run forward: ";
+    cin >> forwardDays;
+
+    cf.analyze(replayDay, cityName, forwardDays);
+}
+
+else if (choice == 13) {
+    Counterfactual cf(graph, sim);
+    cf.showAvailableDays();
+
+    int replayDay, forwardDays, numCities;
+
+    cout << "\nEnter day to replay from: ";
+    cin >> replayDay;
+    cout << "How many cities to compare: ";
+    cin >> numCities;
+
+    vector<string> cities;
+    for (int i = 0; i < numCities; i++) {
+        string c;
+        cout << "Enter city " << (i+1) << ": ";
+        cin >> c;
+        cities.push_back(c);
+    }
+
+    cout << "Enter how many days to run forward: ";
+    cin >> forwardDays;
+
+    cf.compareInterventions(replayDay, cities, forwardDays);
+}
+
 
         else {
             cout << "Invalid choice, try again." << endl;
