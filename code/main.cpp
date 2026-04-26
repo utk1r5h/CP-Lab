@@ -5,6 +5,7 @@
 #include "Grundy.h"
 #include "OutbreakAnalyzer.h"
 #include "Counterfactual.h"
+#include "DSU.h"
 using namespace std;
 
 void printMenu() {
@@ -24,6 +25,7 @@ void printMenu() {
     cout << "  11. Show available replay days" << endl;
     cout << "  12. Counterfactual analysis" << endl;
     cout << "  13. Compare multiple interventions" << endl;
+    cout << "  14. Show network connectivity (DSU)" << endl;
     cout << "  0. Exit" << endl;
     cout << "========================================" << endl;
     cout << "Enter choice: ";
@@ -245,6 +247,9 @@ else if (choice == 13) {
     cin >> forwardDays;
 
     cf.compareInterventions(replayDay, cities, forwardDays);
+}
+else if (choice == 14) {
+    graph.printConnectivity();
 }
 
 

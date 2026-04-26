@@ -103,3 +103,47 @@ void Graph:: closeAllRoads(string cityName){
 
     cout<< "[CLOSED ALL] All roads of "<< cityName << " are closed"<<endl;
 }
+
+DSU Graph::buildDSU() {
+    DSU dsu;
+    for (City* city : cities)
+        dsu.makeSet(city->name);
+
+    set<int> seen;
+    for (City* city : cities) {
+        for (Road& road : city->roads) {
+            if (road.isClosed) continue;
+            if (seen.count(road.id)) continue;
+            seen.insert(road.id);
+            dsu.unite(city->name, road.destination->name);
+        }
+    }
+    return dsu;
+}
+
+void Graph::printConnectivity() {
+    DSU dsu = buildDSU();
+    vector<set<string>> components = dsu.getComponents();
+
+    cout << "\n========================================" << endl;
+    cout << "         NETWORK CONNECTIVITY (DSU)     " << endl;
+    cout << "========================================" << endl;
+    cout << "Total regions: " << components.size() << endl;
+
+    if (components.size() == 1) {
+        cout << "Status: FULLY CONNECTED" << endl;
+    } else {
+        cout << "Status: FRAGMENTED into "
+             << components.size() << " regions" << endl;
+    }
+
+    int regionNum = 1;
+    for (auto& component : components) {
+        cout << "\nRegion " << regionNum++ << " ("
+             << component.size() << " cities): ";
+        for (const string& name : component)
+            cout << name << " ";
+        cout << endl;
+    }
+    cout << "========================================" << endl;
+}

@@ -3,6 +3,7 @@
 #include <string>
 #include "City.h"
 #include "Road.h"
+#include "DSU.h"
 using namespace std;
 
 class Graph {
@@ -22,4 +23,6 @@ public:
     void closeRoad(string cityA, string cityB, string roadName);
 
     void closeAllRoads(string cityName);
+    DSU buildDSU();
+    void printConnectivity();
 };
