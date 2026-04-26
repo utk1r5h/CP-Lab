@@ -22,7 +22,7 @@ void Simulator::infectCity(string cityName) {
          << " is patient zero! (" << city->population
          << " people infected)" << endl;
 
-    infectionLog.push_back({cityName});
+   infectionLog.push_back({{cityName, city->population}});
 }
 
 
@@ -34,20 +34,15 @@ void Simulator::quarantineCity(string cityName) {
     graph.closeAllRoads(cityName);
     cout << "Day " << day << ": " << cityName << " quarantined!" << endl;
 }
-
 void Simulator::stepOneDay() {
     day++;
     cout << "\n--- Day " << day << " ---" << endl;
 
-    // temporary map to accumulate new infections
-    // dont modify cities while iterating
     map<string, int> newInfections;
 
     for (City* city : graph.cities) {
         if (!city->isInfected || city->isQuarantined) continue;
 
-        // proportional spread
-        // infection ratio of this city
         double ratio = (double)city->infectedCount / city->population;
 
         for (Road& road : city->roads) {
@@ -55,8 +50,9 @@ void Simulator::stepOneDay() {
 
             City* neighbor = road.destination;
             if (neighbor->isQuarantined) continue;
+            // dont spread to fully infected cities
+            if (neighbor->isFullyInfected) continue;
 
-            // people spreading = ratio * road capacity
             int spreading = (int)(ratio * road.capacity);
             if (spreading <= 0) continue;
 
@@ -64,39 +60,42 @@ void Simulator::stepOneDay() {
         }
     }
 
-    // apply new infections
-    vector<string> newlyInfectedNames;
+    // CHANGED — stores pair<cityName, newPeopleCount>
+    // only logs cities that actually received new infections
+    vector<pair<string, int>> dailyLog;
 
     for (auto& entry : newInfections) {
         City* city = graph.findCity(entry.first);
         if (!city) continue;
 
         int before = city->infectedCount;
-        city->infectedCount += entry.second;
 
-        // cap at population
-        if (city->infectedCount > city->population) {
+        city->infectedCount += entry.second;
+        if (city->infectedCount > city->population)
             city->infectedCount = city->population;
-        }
+
+        int actualNewInfections = city->infectedCount - before;
+        if (actualNewInfections <= 0) continue;
 
         // update flags
-        if (city->infectedCount > 0) city->isInfected = true;
-        if (city->infectedCount >= city->population) city->isFullyInfected = true;
+        if (city->infectedCount > 0)                   city->isInfected = true;
+        if (city->infectedCount >= city->population)   city->isFullyInfected = true;
 
         cout << "  " << city->name
-             << " | +" << (city->infectedCount - before)
+             << " | +" << actualNewInfections
              << " infected | total: " << city->infectedCount
              << "/" << city->population
              << " (" << (int)city->infectionPercent() << "%)" << endl;
 
-        newlyInfectedNames.push_back(city->name);
+        // CHANGED — only log if there were actual new infections
+        dailyLog.push_back({city->name, actualNewInfections});
     }
 
     if (newInfections.empty()) {
         cout << "  No new infections today." << endl;
     }
 
-    infectionLog.push_back(newlyInfectedNames);
+    infectionLog.push_back(dailyLog);
 }
 
 

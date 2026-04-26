@@ -1,79 +1,70 @@
 #include "OutbreakAnalyzer.h"
 #include <iostream>
 #include <algorithm>
+#include <map>
 using namespace std;
 
-OutbreakAnalyzer::OutbreakAnalyzer(vector<vector<string>>& log, int ws)
+OutbreakAnalyzer::OutbreakAnalyzer(vector<vector<pair<string, int>>>& log, int ws)
     : infectionLog(log), windowSize(ws) {}
 
-int OutbreakAnalyzer::peakDayInWindow(int start, int end) {
-    int peakDay = start;
-    int peakCount = 0;
-    for (int i = start; i <= end; i++) {
-        int count = infectionLog[i].size();
-        if (count > peakCount) {
-            peakCount = count;
-            peakDay = i;
-        }
-    }
-    return peakDay;
+// helper — total people infected in one day
+static long long dayTotal(const vector<pair<string, int>>& day) {
+    long long total = 0;
+    for (auto& entry : day) total += entry.second;
+    return total;
 }
 
 OutbreakWindow OutbreakAnalyzer::findWorstWindow() {
     int n = infectionLog.size();
     OutbreakWindow worst;
-    worst.startDay = 0;
-    worst.endDay = 0;
-    worst.totalInfections = 0;
+    worst.startDay           = 1;
+    worst.endDay             = 1;
+    worst.totalPeopleInfected = 0;
 
     if (n == 0) return worst;
 
-    // if simulation ran fewer days than window size
-    // just use however many days we have
     int actualWindow = min(windowSize, n);
 
     // calculate first window
-    int currentTotal = 0;
-    vector<string> currentCities;
+    long long currentTotal = 0;
+    vector<pair<string, int>> currentCities;
 
     for (int i = 0; i < actualWindow; i++) {
-        for (const string& city : infectionLog[i]) {
-            currentTotal++;
-            currentCities.push_back(city);
+        for (auto& entry : infectionLog[i]) {
+            currentTotal += entry.second;
+            currentCities.push_back(entry);
         }
     }
 
-    worst.startDay       = 1; // days are 1-indexed for display
-    worst.endDay         = actualWindow;
-    worst.totalInfections = currentTotal;
-    worst.cities         = currentCities;
+    worst.startDay            = 1;
+    worst.endDay              = actualWindow;
+    worst.totalPeopleInfected = currentTotal;
+    worst.cities              = currentCities;
 
-    // slide window forward
+    // slide window
     for (int i = actualWindow; i < n; i++) {
-        // remove leftmost day from window
         int removeDay = i - actualWindow;
-        currentTotal -= infectionLog[removeDay].size();
 
-        // remove those cities from currentCities
-        for (const string& city : infectionLog[removeDay]) {
+        // remove leftmost day
+        currentTotal -= dayTotal(infectionLog[removeDay]);
+        for (auto& entry : infectionLog[removeDay]) {
             currentCities.erase(
-                remove(currentCities.begin(), currentCities.end(), city),
+                remove(currentCities.begin(), currentCities.end(), entry),
                 currentCities.end()
             );
         }
 
-        // add new rightmost day to window
-        for (const string& city : infectionLog[i]) {
-            currentTotal++;
-            currentCities.push_back(city);
+        // add new rightmost day
+        for (auto& entry : infectionLog[i]) {
+            currentTotal += entry.second;
+            currentCities.push_back(entry);
         }
 
-        // check if this window is worse
-        if (currentTotal > worst.totalInfections) {
-            worst.startDay        = removeDay + 2; // 1-indexed
-            worst.endDay          = i + 1;
-            worst.totalInfections = currentTotal;
-            worst.cities          = currentCities;
+        if (currentTotal > worst.totalPeopleInfected) {
+            worst.startDay            = removeDay + 2;
+            worst.endDay              = i + 1;
+            worst.totalPeopleInfected = currentTotal;
+            worst.cities              = currentCities;
         }
     }
 
@@ -81,23 +72,23 @@ OutbreakWindow OutbreakAnalyzer::findWorstWindow() {
 }
 
 int OutbreakAnalyzer::findWorstSingleDay() {
-    int worstDay  = 0;
-    int worstCount = 0;
+    int worstDay   = 0;
+    long long worstCount = 0;
 
     for (int i = 0; i < (int)infectionLog.size(); i++) {
-        int count = infectionLog[i].size();
+        long long count = dayTotal(infectionLog[i]);
         if (count > worstCount) {
             worstCount = count;
             worstDay   = i;
         }
     }
-    return worstDay; // 0-indexed, add 1 for display
+    return worstDay;
 }
 
 void OutbreakAnalyzer::analyze() {
     cout << "\n========================================" << endl;
     cout << "   OUTBREAK ANALYSIS (Window = "
-         << windowSize << " days)        " << endl;
+         << windowSize << " days)" << endl;
     cout << "========================================" << endl;
 
     if (infectionLog.empty()) {
@@ -106,55 +97,66 @@ void OutbreakAnalyzer::analyze() {
         return;
     }
 
-    // print full day by day log first
+    // day by day log
     cout << "\nDay by day infection log:" << endl;
     cout << "--------------------------------------------" << endl;
     for (int i = 0; i < (int)infectionLog.size(); i++) {
-        cout << "  Day " << (i+1) << " → "
-             << infectionLog[i].size() << " new infections";
+        long long total = dayTotal(infectionLog[i]);
+        cout << "  Day " << (i+1)
+             << " → " << total << " new people infected";
+
         if (!infectionLog[i].empty()) {
-            cout << " : ";
+            cout << " | Cities: ";
             for (int j = 0; j < (int)infectionLog[i].size(); j++) {
-                cout << infectionLog[i][j];
+                cout << infectionLog[i][j].first
+                     << " (+" << infectionLog[i][j].second << ")";
                 if (j < (int)infectionLog[i].size()-1) cout << ", ";
             }
         }
         cout << endl;
     }
 
-    // sliding window analysis
-    cout << "\nSliding window analysis:" << endl;
+    // sliding window
+    cout << "\nSliding window analysis (people infected):" << endl;
     cout << "--------------------------------------------" << endl;
 
     int n = infectionLog.size();
     int actualWindow = min(windowSize, n);
 
-    // print every window
     for (int i = 0; i <= n - actualWindow; i++) {
-        int total = 0;
+        long long total = 0;
         for (int j = i; j < i + actualWindow; j++) {
-            total += infectionLog[j].size();
+            total += dayTotal(infectionLog[j]);
         }
         cout << "  Day " << (i+1) << " to Day " << (i+actualWindow)
-             << " → " << total << " infections" << endl;
+             << " → " << total << " people infected" << endl;
     }
 
-    // worst window result
+    // worst window
     OutbreakWindow worst = findWorstWindow();
     cout << "\n--------------------------------------------" << endl;
     cout << "WORST OUTBREAK WINDOW:" << endl;
     cout << "  Days " << worst.startDay << " to " << worst.endDay << endl;
-    cout << "  Total new infections: " << worst.totalInfections << endl;
-    cout << "  Cities infected in this window:" << endl;
-    for (const string& city : worst.cities) {
-        cout << "    -> " << city << endl;
+    cout << "  Total people newly infected: "
+         << worst.totalPeopleInfected << endl;
+    cout << "  Cities affected in this window:" << endl;
+
+    // group by city name to avoid repetition
+    map<string, long long> cityTotals;
+    for (auto& entry : worst.cities) {
+        cityTotals[entry.first] += entry.second;
+    }
+    for (auto& entry : cityTotals) {
+        cout << "    -> " << entry.first
+             << " | +" << entry.second << " people" << endl;
     }
 
     // worst single day
     int worstDay = findWorstSingleDay();
     cout << "\nWORST SINGLE DAY:" << endl;
-    cout << "  Day " << (worstDay+1) << " with "
-         << infectionLog[worstDay].size() << " new infections" << endl;
+    cout << "  Day " << (worstDay+1)
+         << " with " << dayTotal(infectionLog[worstDay])
+         << " new people infected" << endl;
 
     cout << "========================================" << endl;
 }

@@ -6,27 +6,19 @@ using namespace std;
 struct OutbreakWindow {
     int startDay;
     int endDay;
-    int totalInfections;
-    vector<string> cities;
+    long long totalPeopleInfected;   // CHANGED — people not city count
+    vector<pair<string, int>> cities; // CHANGED — city + people count
 };
 
 class OutbreakAnalyzer {
 private:
-    vector<vector<string> >& infectionLog;
+    vector<vector<pair<string, int>>>& infectionLog;  // CHANGED
     int windowSize;
 
-    // find peak single day in a window
-    int peakDayInWindow(int start, int end);
-
 public:
-    OutbreakAnalyzer(vector<vector<string> >& log, int windowSize = 3);
+    OutbreakAnalyzer(vector<vector<pair<string, int>>>& log, int windowSize = 3);
 
-    // main sliding window analysis
     OutbreakWindow findWorstWindow();
-
-    // find single worst day
     int findWorstSingleDay();
-
-    // print full analysis
     void analyze();
 };

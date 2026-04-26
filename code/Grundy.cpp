@@ -6,96 +6,116 @@ using namespace std;
 
 Grundy::Grundy(Graph& g) : graph(g) {}
 
-// update getSpreadTargets to respect closed roads
+int Grundy::totalInfected(const GameState& state) const {
+    int total = 0;
+    for (auto& entry : state.infectedCount)
+        total += entry.second;
+    return total;
+}
+
+int Grundy::totalHealthy(const GameState& state) const {
+    int total = 0;
+    for (City* city : graph.cities) {
+        total += state.healthyPeople(city->name);
+    }
+    return total;
+}
+
+// cities that can receive new infections this step
 vector<string> Grundy::getSpreadTargets(const GameState& state) {
     set<string> targets;
     for (City* city : graph.cities) {
-        if (state.infected.count(city->name) &&
-            !state.quarantined.count(city->name)) {
-            for (Road& road : city->roads) {
-                if (road.isClosed) continue; // NEW — respect closed roads
-                string neighbor = road.destination->name;
-                if (!state.infected.count(neighbor) &&
-                    !state.quarantined.count(neighbor)) {
-                    targets.insert(neighbor);
-                }
+        if (!state.isInfected(city->name)) continue;
+        if (state.quarantined.count(city->name)) continue;
+
+        for (Road& road : city->roads) {
+            if (road.isClosed) continue;
+            string neighbor = road.destination->name;
+            if (state.quarantined.count(neighbor)) continue;
+            // can spread to ANY city not fully infected
+            // even partially infected ones get worse
+            if (!state.isFullyInfected(neighbor)) {
+                targets.insert(neighbor);
             }
         }
     }
     return vector<string>(targets.begin(), targets.end());
 }
 
-// government can quarantine any healthy uninfected city
+// KEY CHANGE — city is quarantinable if not fully infected
+// and not already quarantined
 vector<string> Grundy::getQuarantineMoves(const GameState& state) {
     vector<string> moves;
     for (City* city : graph.cities) {
-        if (!state.infected.count(city->name) &&
-            !state.quarantined.count(city->name)) {
+        if (state.quarantined.count(city->name)) continue;
+
+        // can quarantine if not fully infected
+        // this includes healthy cities AND partially infected ones
+        if (!state.isFullyInfected(city->name)) {
             moves.push_back(city->name);
         }
     }
     return moves;
 }
 
-// spread virus to all reachable cities, return new state
+// proportional spread in game state
 GameState Grundy::spreadVirus(const GameState& state) {
     GameState newState = state;
-    vector<string> targets = getSpreadTargets(state);
-    for (const string& t : targets) {
-        newState.infected.insert(t);
+
+    for (City* city : graph.cities) {
+        if (!state.isInfected(city->name)) continue;
+        if (state.quarantined.count(city->name)) continue;
+
+        double ratio = state.infectionRatio(city->name);
+
+        for (Road& road : city->roads) {
+            if (road.isClosed) continue;
+            string neighbor = road.destination->name;
+            if (state.quarantined.count(neighbor)) continue;
+
+            int spreading = (int)(ratio * road.capacity);
+            if (spreading <= 0) continue;
+
+            // add to neighbor's infected count
+            newState.infectedCount[neighbor] += spreading;
+
+            // cap at population
+            int pop = newState.population[neighbor];
+            if (newState.infectedCount[neighbor] > pop) {
+                newState.infectedCount[neighbor] = pop;
+            }
+        }
     }
     return newState;
 }
 
-// grundy number calculation with memoization
-// depth limits recursion so it doesnt run forever
 int Grundy::calculateGrundy(const GameState& state, int depth) {
     if (depth == 0) return 0;
-
-    // check cache
     if (memo.count(state)) return memo[state];
 
-    // check if all cities are infected or quarantined — virus won
-    bool anyHealthy = false;
-    for (City* city : graph.cities) {
-        if (!state.infected.count(city->name) &&
-            !state.quarantined.count(city->name)) {
-            anyHealthy = true;
-            break;
-        }
+    // check if virus has no more spread targets — government won
+    vector<string> targets = getSpreadTargets(state);
+    if (targets.empty()) {
+        memo[state] = 1;
+        return 1;
     }
-    if (!anyHealthy) {
+
+    // check if no quarantine moves left
+    vector<string> moves = getQuarantineMoves(state);
+    if (moves.empty()) {
         memo[state] = 0;
         return 0;
     }
 
-    // check if virus has no more moves — government won
-    vector<string> targets = getSpreadTargets(state);
-    if (targets.empty()) {
-        memo[state] = 1; // government wins
-        return 1;
-    }
-
-    // government picks a city to quarantine
-    // then virus spreads
-    // government wants to reach a state where grundy > 0
-    vector<string> moves = getQuarantineMoves(state);
-
     set<int> reachableGrundy;
     for (const string& move : moves) {
-        // government quarantines this city
         GameState afterQuarantine = state;
         afterQuarantine.quarantined.insert(move);
-
-        // then virus spreads
         GameState afterSpread = spreadVirus(afterQuarantine);
-
         int g = calculateGrundy(afterSpread, depth - 1);
         reachableGrundy.insert(g);
     }
 
-    // mex — minimum excludant
-    // smallest non-negative integer NOT in reachableGrundy
     int mex = 0;
     while (reachableGrundy.count(mex)) mex++;
 
@@ -103,10 +123,12 @@ int Grundy::calculateGrundy(const GameState& state, int depth) {
     return mex;
 }
 
+// build current state from actual simulation
 GameState Grundy::buildCurrentState() {
     GameState state;
     for (City* city : graph.cities) {
-        if (city->isInfected)    state.infected.insert(city->name);
+        state.population[city->name]     = city->population;
+        state.infectedCount[city->name]  = city->infectedCount;
         if (city->isQuarantined) state.quarantined.insert(city->name);
     }
     return state;
@@ -117,99 +139,109 @@ void Grundy::analyze(const GameState& currentState) {
     cout << "       GRUNDY GAME THEORY ANALYSIS      " << endl;
     cout << "========================================" << endl;
 
-    cout << "\nCurrent infected cities:" << endl;
-    for (const string& c : currentState.infected)
-        cout << "  [INFECTED]  " << c << endl;
+    // print current infection state with actual numbers
+    cout << "\nCurrent infection state:" << endl;
+    for (City* city : graph.cities) {
+        int infected = currentState.infectedCount.count(city->name)
+                     ? currentState.infectedCount.at(city->name) : 0;
+        int pop      = city->population;
+        int percent  = pop > 0 ? (int)((double)infected/pop*100) : 0;
 
-    cout << "\nCurrent quarantined cities:" << endl;
-    if (currentState.quarantined.empty())
-        cout << "  none" << endl;
-    for (const string& c : currentState.quarantined)
-        cout << "  [QUARANTINE] " << c << endl;
+        if (currentState.quarantined.count(city->name)) {
+            cout << "  [QUARANTINED] " << city->name
+                 << " | " << infected << "/" << pop << endl;
+        } else if (currentState.isFullyInfected(city->name)) {
+            cout << "  [FULLY INFECTED] " << city->name
+                 << " | " << infected << "/" << pop << endl;
+        } else if (infected > 0) {
+            cout << "  [PARTIAL " << percent << "%] " << city->name
+                 << " | " << infected << "/" << pop << endl;
+        } else {
+            cout << "  [HEALTHY] " << city->name
+                 << " | " << infected << "/" << pop << endl;
+        }
+    }
 
-    // find best quarantine move
+    cout << "\nTotal infected people: " << totalInfected(currentState) << endl;
+    cout << "Total healthy people:  " << totalHealthy(currentState) << endl;
+
     vector<string> moves = getQuarantineMoves(currentState);
     if (moves.empty()) {
-        cout << "\n[!] No quarantine moves available" << endl;
+        cout << "\n[!] All cities fully infected — no moves left" << endl;
         return;
     }
 
-    cout << "\nEvaluating all possible quarantine moves..." << endl;
+    cout << "\nEvaluating quarantine options..." << endl;
     cout << "--------------------------------------------" << endl;
 
-    string bestMove = "";
-    int bestGrundy = -1;
-    int bestSaved = -1;
+    string bestMove    = "";
+    int bestGrundy     = -1;
+    int bestHealthy    = -1;
 
     for (const string& move : moves) {
         GameState afterQuarantine = currentState;
         afterQuarantine.quarantined.insert(move);
         GameState afterSpread = spreadVirus(afterQuarantine);
 
-        int grundyVal = calculateGrundy(afterSpread, 6);
-
-        // count how many cities stay healthy
-        int healthy = 0;
-        for (City* city : graph.cities) {
-            if (!afterSpread.infected.count(city->name) &&
-                !afterSpread.quarantined.count(city->name)) {
-                healthy++;
-            }
-        }
+        int grundyVal      = calculateGrundy(afterSpread, 5);
+        int healthyPeople  = totalHealthy(afterSpread);
+        int cityPercent    = currentState.infectedCount.count(move)
+                           ? (int)(currentState.infectionRatio(move) * 100) : 0;
 
         cout << "  Quarantine " << move
+             << " (currently " << cityPercent << "% infected)"
              << " → Grundy = " << grundyVal
-             << " | Healthy cities after: " << healthy;
+             << " | Healthy people after: " << healthyPeople;
 
-        if (grundyVal > 0) cout << " ✓ WINNING";
-        else               cout << " ✗ LOSING";
+        if (grundyVal > 0) cout << " [WINNING]";
+        else               cout << " [LOSING]";
         cout << endl;
 
         if (grundyVal > bestGrundy ||
-           (grundyVal == bestGrundy && healthy > bestSaved)) {
-            bestGrundy = grundyVal;
-            bestMove   = move;
-            bestSaved  = healthy;
+           (grundyVal == bestGrundy && healthyPeople > bestHealthy)) {
+            bestGrundy  = grundyVal;
+            bestMove    = move;
+            bestHealthy = healthyPeople;
         }
     }
 
     cout << "\n========================================" << endl;
     if (bestGrundy > 0) {
         cout << "[GRUNDY] Government is in WINNING position!" << endl;
-        cout << "[GRUNDY] Optimal move → Quarantine " << bestMove << endl;
-        cout << "[GRUNDY] This saves " << bestSaved << " cities from infection" << endl;
     } else {
-        cout << "[GRUNDY] Virus is in WINNING position!" << endl;
-        cout << "[GRUNDY] Best damage control → Quarantine " << bestMove << endl;
-        cout << "[GRUNDY] Minimizes spread to " << bestSaved << " healthy cities" << endl;
+        cout << "[GRUNDY] Virus has advantage — damage control mode" << endl;
     }
+    cout << "[GRUNDY] Best move → Quarantine " << bestMove << endl;
+    cout << "[GRUNDY] Saves approximately " << bestHealthy
+         << " healthy people" << endl;
     cout << "========================================" << endl;
 }
 
 void Grundy::compareStrategies(GameState state) {
     cout << "\n========================================" << endl;
     cout << "    STRATEGY COMPARISON                 " << endl;
-    cout << "    With Grundy vs Without Grundy       " << endl;
+    cout << "    Grundy guided vs No containment     " << endl;
     cout << "========================================" << endl;
 
-    // WITHOUT grundy — just spread freely for 3 days
+    int initialHealthy = totalHealthy(state);
+
+    // WITHOUT strategy — spread freely for 3 days
     GameState noStrategy = state;
     for (int i = 0; i < 3; i++) {
         noStrategy = spreadVirus(noStrategy);
     }
+    int healthyNoStrategy = totalHealthy(noStrategy);
 
-    int infectedNoStrategy = noStrategy.infected.size();
-
-    // WITH grundy — find best move, quarantine, then spread
+    // WITH grundy — find best move, apply, then spread 3 days
     vector<string> moves = getQuarantineMoves(state);
     string bestMove = "";
-    int bestGrundy = -1;
+    int bestGrundy  = -1;
 
     for (const string& move : moves) {
         GameState afterQ = state;
         afterQ.quarantined.insert(move);
         GameState afterS = spreadVirus(afterQ);
-        int g = calculateGrundy(afterS, 5);
+        int g = calculateGrundy(afterS, 4);
         if (g > bestGrundy) { bestGrundy = g; bestMove = move; }
     }
 
@@ -218,22 +250,19 @@ void Grundy::compareStrategies(GameState state) {
     for (int i = 0; i < 3; i++) {
         withStrategy = spreadVirus(withStrategy);
     }
+    int healthyWithStrategy = totalHealthy(withStrategy);
 
-    int infectedWithStrategy = withStrategy.infected.size();
-    int citiesSaved = infectedNoStrategy - infectedWithStrategy;
+    cout << "\nStarting healthy population: " << initialHealthy << endl;
+    cout << "\nAfter 3 days WITHOUT containment:" << endl;
+    cout << "  Healthy people remaining: " << healthyNoStrategy << endl;
+    cout << "  People infected: " << (initialHealthy - healthyNoStrategy) << endl;
 
-    cout << "\nSimulating 3 days forward from current state..." << endl;
-    cout << "\nWithout Grundy (no quarantine):" << endl;
-    cout << "  Infected after 3 days: " << infectedNoStrategy << " cities" << endl;
-    for (const string& c : noStrategy.infected)
-        cout << "    -> " << c << endl;
-
-    cout << "\nWith Grundy (quarantine " << bestMove << "):" << endl;
-    cout << "  Infected after 3 days: " << infectedWithStrategy << " cities" << endl;
-    for (const string& c : withStrategy.infected)
-        cout << "    -> " << c << endl;
+    cout << "\nAfter 3 days WITH Grundy (quarantine " << bestMove << "):" << endl;
+    cout << "  Healthy people remaining: " << healthyWithStrategy << endl;
+    cout << "  People infected: " << (initialHealthy - healthyWithStrategy) << endl;
 
     cout << "\n[RESULT] Grundy strategy saved "
-         << citiesSaved << " cities!" << endl;
+         << (healthyWithStrategy - healthyNoStrategy)
+         << " additional people!" << endl;
     cout << "========================================" << endl;
 }
